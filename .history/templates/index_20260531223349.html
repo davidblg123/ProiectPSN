@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistem Control Sincretic</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 30px; background-color: #f4f4f9;}
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 10px gray; display: inline-block; margin: 10px; width: 300px; vertical-align: top;}
+        .alerta { color: red; font-weight: bold; }
+        button { padding: 10px 20px; font-size: 16px; margin: 5px; cursor: pointer; border: none; border-radius: 5px;}
+        .btn-on { background-color: #4CAF50; color: white; }
+        .btn-off { background-color: #f44336; color: white; }
+        .btn-msg { background-color: #2196F3; color: white; width: 100%; margin-top: 10px;}
+        .btn-load { background-color: #ff9800; color: white; width: 100%; margin-bottom: 10px;}
+        input[type="text"] { padding: 10px; width: 90%; border-radius: 5px; border: 1px solid #ccc;}
+        ul { text-align: left; padding-left: 20px; }
+        li { margin-bottom: 5px; font-size: 14px; background: #eee; padding: 5px; border-radius: 3px;}
+    </style>
+</head>
+<body>
+
+    <h1>Interfață Control Sistem</h1>
+
+    <div class="card">
+        <h2>Senzori</h2>
+        <p>Temperatura: <span id="tempValue" style="font-weight: bold; font-size: 1.2em;">--</span> °C</p>
+        <p>Stare: <span id="floodValue">Verificare...</span></p>
+    </div>
+
+    <div class="card">
+        <h2>Control LED</h2>
+        <button class="btn-on" onclick="schimbaLed('on')">Aprinde LED</button>
+        <button class="btn-off" onclick="schimbaLed('off')">Stinge LED</button>
+    </div>
+
+    <div class="card">
+        <h2>Trimite Mesaj EEPROM</h2>
+        <input type="text" id="inputMesaj" placeholder="Scrie mesajul aici..." maxlength="28">
+        <button class="btn-msg" onclick="trimiteMesajul()">Trimite către Sistem</button>
+    </div>
+
+    <div class="card">
+        <h2>Memorie Sistem</h2>
+        <button class="btn-load" onclick="incarcaMemoria()">⬇️ Încarcă Mesajele Salvate</button>
+        <ul id="listaMesaje">
+            <li>Niciun mesaj încărcat.</li>
+        </ul>
+    </div>
+
+    <script>
+        function actualizeazaDate() {
+            fetch('/api/date')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('tempValue').innerText = data.temperatura;
+                    let floodSpan = document.getElementById('floodValue');
+                    if(data.inundatie === "1") {
+                        floodSpan.innerText = "ALARMĂ INUNDAȚIE!";
+                        floodSpan.className = "alerta";
+                    } else {
+                        floodSpan.innerText = "Normal (Uscat)";
+                        floodSpan.className = "";
+                    }
+                })
+                .catch(error => console.error('Eroare:', error));
+        }
+
+        function schimbaLed(actiune) {
+            fetch('/led/' + actiune);
+        }
+
+        function trimiteMesajul() {
+            let casutaText = document.getElementById('inputMesaj');
+            let textTrimis = casutaText.value;
+            if (textTrimis.trim() === "") { alert("Scrie un mesaj!"); return; }
+
+            fetch('/api/mesaj', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: textTrimis })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.status === "succes") {
+                    casutaText.value = ""; 
+                    alert("Mesajul a plecat spre hardware! Apasă pe Încărcare Memorie pentru a-l vedea.");
+                }
+            });
+        }
+
+        // FUNCȚII REPARATE PENTRU CITIREA MEMORIEI
+        function incarcaMemoria() {
+            document.getElementById('listaMesaje').innerHTML = "<li>Comandă trimisă... Așteptăm datele din hardware ⏳</li>";
+            
+            // 1. Dăm comanda de citire către Arduino
+            fetch('/api/cere_memorie').then(() => {
+                // 2. Așteptăm 3.5 secunde pentru a lăsa timp internetului și plăcii fizice
+                setTimeout(afiseazaMemoria, 3500); 
+            });
+        }
+
+        function afiseazaMemoria() {
+            fetch('/api/memorie')
+                .then(response => response.json())
+                .then(data => {
+                    let listaHTML = document.getElementById('listaMesaje');
+                    
+                    // Verificăm dacă Azure ne-a trimis mesajul de "Așteptare" pus de noi mai devreme
+                    if (data.Info) {
+                        listaHTML.innerHTML = `<li>${data.Info} ⏳</li>`;
+                        // Mai încercăm o dată automat peste 2 secunde (fără să mai trimitem litera C)
+                        setTimeout(afiseazaMemoria, 2000);
+                        return;
+                    }
+
+                    listaHTML.innerHTML = ""; // Golim lista veche
+                    let suntMesaje = false;
+                    
+                    for (let key in data) {
+                        // Afișăm doar dacă slotul nu este complet gol
+                        if(data[key] !== "") {
+                            suntMesaje = true;
+                            let itemNou = document.createElement("li");
+                            itemNou.innerText = `${key}: ${data[key]}`;
+                            listaHTML.appendChild(itemNou);
+                        }
+                    }
+                    
+                    if(!suntMesaje) {
+                        listaHTML.innerHTML = "<li>Memoria hardware este goală.</li>";
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('listaMesaje').innerHTML = "<li>Eroare la citirea datelor din Cloud.</li>";
+                });
+        }
+
+        setInterval(actualizeazaDate, 1000);
+        actualizeazaDate();
+        
+    </script>
+</body>
+</html>
