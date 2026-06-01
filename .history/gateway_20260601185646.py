@@ -45,12 +45,12 @@ while True:
             if linie.startswith("MEM:"):
                 parti = linie.split(":", 2) # Tăiem textul în 3 bucăți
                 if len(parti) == 3:
-                    index_mesaj = parti[1]
+                    index_mesaj = parti[1] + 1
                     text_mesaj = parti[2]
                     # Dacă nu există dicționarul, îl creăm ad-hoc
                     if 'memorie_temporara' not in globals():
                         globals()['memorie_temporara'] = {}
-                    memorie_temporara[f"Mesajul {int(index_mesaj) + 1:02d}: "] = text_mesaj
+                    memorie_temporara[f"Mesajul {index_mesaj}: "] = text_mesaj
             
             # CAZUL B: Arduino a terminat de citit memoria
             elif linie == "GATA_MEMORIE":

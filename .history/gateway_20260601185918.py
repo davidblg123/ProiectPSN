@@ -50,7 +50,7 @@ while True:
                     # Dacă nu există dicționarul, îl creăm ad-hoc
                     if 'memorie_temporara' not in globals():
                         globals()['memorie_temporara'] = {}
-                    memorie_temporara[f"Mesajul {int(index_mesaj) + 1:02d}: "] = text_mesaj
+                    memorie_temporara[f"Mesajul {index_mesaj + 1}: "] = text_mesaj
             
             # CAZUL B: Arduino a terminat de citit memoria
             elif linie == "GATA_MEMORIE":
